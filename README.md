@@ -1,2 +1,3 @@
-# Afl_fuzz_learning
-afl-fuzz学习笔记
+# Fuzz_learning
+模糊测试学习笔记
+
