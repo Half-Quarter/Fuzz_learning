@@ -1,4 +1,4 @@
-### while（1）之前的源码解析
+### AFL-Fuzz 主循环之前的准备代码解析
 ---
 
 ```c
@@ -69,25 +69,19 @@ int main(int argc, char** argv) {
             *c = 0;
 
             if (sscanf(c + 1, "%u/%u", &master_id, &master_max) != 2 ||
-                !master_id || !master_max || master_id > master_max ||
-                master_max > 1000000) FATAL("Bogus master ID passed to -M");
-
+             !master_id || !master_max || master_id > master_max ||
+             master_max > 1000000) FATAL("Bogus master ID passed to -M");
           }
-
           force_deterministic = 1;
-
         }
-
         break;
       //多核处理器时设置的子节点
       case 'S': 
-
         if (sync_id) FATAL("Multiple -S or -M options not supported");
         sync_id = ck_strdup(optarg);
         break;
       //模糊测试程序读取位置stdin
       case 'f': /* target file */
-
         if (out_file) FATAL("Multiple -f options not supported");
         out_file = optarg;
         break;
@@ -295,8 +289,12 @@ int main(int argc, char** argv) {
   setup_post();
   
   //配置共享内存和原始位
+  /*
+   AFL使用共享内存完成执行过程中的分支信息在fuzzer和target之间传递
+   分配成功后，共享内存的标志会被设置到环境变量中，之后fork的子进程都可以通过这个环境变量获得共享内存的标志符，fuzzer也通过trace_bits保存共享内存的地址，在每次target执行之前都会清零共享内容（见run_target（））
+  */
   setup_shm();
-  //？
+  //简单归类，处理一些因为循环次数的微小区别而误判为不同执行结果的情况
   init_count_class16(); 
   //创建文件夹
   setup_dirs_fds();
@@ -307,7 +305,7 @@ int main(int argc, char** argv) {
   read_testcases();
   //加载自动生成的额外项
   load_auto();
-  //？
+  //使用函数markasdetdone为已经经过确定性变异的测试用例放到一个文件夹中
   pivot_inputs();
   //如果存在额外文件目录 则读取并按照文件大小排序
   if (extras_dir) load_extras(extras_dir);
@@ -322,7 +320,7 @@ int main(int argc, char** argv) {
   //如果没有设定-f参数 创建输出文件保存测试数据
   if (!out_file) setup_stdio_file();
   //根据路径搜索找到目标二进制文件，查看是否存在
-  //检查有效的ELF头 （为AFL插桩的证据？？二进制怎么插桩）
+  //检查有效的ELF头和是否被插桩
   check_binary(argv[optind]);
   //设定开始时间
   start_time = get_cur_time();
@@ -331,10 +329,16 @@ int main(int argc, char** argv) {
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
-  //执行所有测试用例的试运行，确认程序的工作方式
-  //只针对初始输入，只执行一次
+    
+  /*执行所有测试用例的试运行，确认程序的工作方式，只针对初始输入，只执行一次
+    其中调用的calibrate_case()函数 在fuzz_one()中也有调用
+    作用：执行input下预先准备的所有testcase，生成初始化的queue和bitmap
+     调用calibrate_case进行校准，再根据返回值判断是否有错误和错误类型
+  */
   perform_dry_run(use_argv);
+```
 
+```c
  //根据top_rated设置队列中的favored标志
   cull_queue();
   /*遍历top_rated[]条目，然后依次获取先前未见过的字节（temp_v）的获胜者，并将其标记为受青睐，至少直到下一次运行为止，在所有模糊测试步骤中，首选条目将获得更多广播时间。*/
@@ -360,3 +364,139 @@ int main(int argc, char** argv) {
     if (stop_soon) goto stop_fuzzing;
   }
 ```
+
+---
+###  涉及到的关键函数
+ calibrate_case():
+```c
+ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,u32 handicap, u8 from_queue) {
+ static u8 first_trace[MAP_SIZE];
+  u8  fault = 0, new_bits = 0, var_detected = 0,
+  first_run = (q->exec_cksum == 0);
+
+  u64 start_us, stop_us;
+  //设置阶段参数设置,超时时间
+  s32 old_sc = stage_cur, old_sm = stage_max;
+  u32 use_tmout = exec_tmout;
+  u8* old_sn = stage_name;
+ //如果不是队列中的或者是恢复的测试，设置较长的timeout
+  if (!from_queue || resuming_fuzz)
+    use_tmout = MAX(exec_tmout + CAL_TMOUT_ADD,
+                    exec_tmout * CAL_TMOUT_PERC / 100);
+
+  q->cal_failed++;
+
+  stage_name = "calibration";
+  //环境变量有一个AFL_FAST_CAL设置是否calibrate快速，如果快速设置3，否则设置8
+  //config.h CAL_CYCLES全局变量为8 每个新测试用例的校准周期数
+  stage_max  = fast_cal ? 3 : CAL_CYCLES;
+
+ //确保启动forkserver
+  if (dumb_mode != 1 && !no_forkserver && !forksrv_pid)
+    /*
+    fork就是linux复制一个子进程的，fork()的返回值如果是0则是创建了子进程，负数则为创建进程时出错，正数则为父进程中新创建子进程的进程ID
+    */
+    init_forkserver(argv);
+  
+  if (q->exec_cksum) memcpy(first_trace, trace_bits, MAP_SIZE);
+
+  start_us = get_cur_time_us();
+ //开始循环 以周期数为最大值
+  for (stage_cur = 0; stage_cur < stage_max; stage_cur++) {
+
+    u32 cksum;
+    //first_run是检验是不是第一次运行 第一次运行校验和为0
+    //且当前循环数和统计更新频率取余不为0则调用展示一个统计页面
+    if (!first_run && !(stage_cur % stats_update_freq)) show_stats();
+    //将修改后的数据写入文件进行测试
+    write_to_testcase(use_mem, q->len);
+    //可以让forkserver运行并进行fuzz
+    fault = run_target(argv, use_tmout);
+    
+    /* stop_soon is set by the handler for Ctrl+C. When it's pressed,
+       we want to bail out quickly. */
+    if (stop_soon || fault != crash_mode) goto abort_calibration;
+    if (!dumb_mode && !stage_cur && !count_bytes(trace_bits)) {
+      fault = FAULT_NOINST; //报错
+      goto abort_calibration;
+    }
+    //以trace_bits为key，map_size为长度，HASH_CONST为种子生成哈希值
+    //trace_bits前文讲过是共享内存 如果该变量出现了变化，则cksum就会发生变化
+    cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
+    //如果检验和不相等（产生了新分支执行路径？）
+    if (q->exec_cksum != cksum) {
+      //检查当前执行路径是否为表格带来新内容
+      u8 hnb = has_new_bits(virgin_bits);
+      
+      if (hnb > new_bits) new_bits = hnb;
+    
+      if (q->exec_cksum) {
+    
+        u32 i;
+    
+        for (i = 0; i < MAP_SIZE; i++) {
+    
+          if (!var_bytes[i] && first_trace[i] != trace_bits[i]) {
+            //增加最大校准次数为40
+            var_bytes[i] = 1;
+            stage_max    = CAL_CYCLES_LONG;
+          }
+        }
+        var_detected = 1;
+      }
+      //如果校准和为0则将新的校准和赋给他
+      else {
+        q->exec_cksum = cksum;
+        memcpy(first_trace, trace_bits, MAP_SIZE);
+      }
+    }
+  }
+
+  stop_us = get_cur_time_us();
+ //统计用时和循环次数
+  total_cal_us     += stop_us - start_us;
+  total_cal_cycles += stage_max;
+
+ //更新信息
+  q->exec_us     = (stop_us - start_us) / stage_max;
+  q->bitmap_size = count_bytes(trace_bits);
+  q->handicap    = handicap;
+  q->cal_failed  = 0;
+
+  total_bitmap_size += q->bitmap_size;
+  total_bitmap_entries++;
+
+  update_bitmap_score(q);
+
+ //如果这个用例没有导致从插桩中获得新输出，提醒用户注意
+  if (!dumb_mode && first_run && !fault && !new_bits) fault = FAULT_NOBITS;
+
+abort_calibration:
+
+  if (new_bits == 2 && !q->has_new_cov) {
+    q->has_new_cov = 1;
+    queued_with_cov++;
+  }
+
+  /* 标记变量路径 */
+  //在符合q的检验和不为空时设置var_detected=1,标记具有可变行为的测试用例
+  if (var_detected) {
+    var_byte_count = count_bytes(var_bytes);
+    if (!q->var_behavior) {
+      mark_as_variable(q);
+      queued_variable++;
+    }
+  }
+  stage_name = old_sn;
+  stage_cur  = old_sc;
+  stage_max  = old_sm;
+  if (!first_run) show_stats();
+  return fault;
+}
+
+```
+
+### 参考的文章
+1.AFL内部实现细节：http://rk700.github.io/2017/12/28/afl-internals/
+2.linux中的fork函数：https://www.cnblogs.com/dongguolei/p/8086346.html
+3.AFL afl_fuzz.c 详细分析：https://bbs.pediy.com/thread-254705.htm
