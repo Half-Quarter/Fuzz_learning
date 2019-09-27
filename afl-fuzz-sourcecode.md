@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
   while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:Q")) > 0)
 
     switch (opt) {
-      //输入文件夹
+      //设置输入文件夹
       case 'i': /* input dir */
 
         if (in_dir) FATAL("Multiple -i options not supported");
@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         if (!strcmp(in_dir, "-")) in_place_resume = 1;
 
         break;
-     //输出文件夹
+     //设置输出文件夹
       case 'o': /* output dir */
 
         if (out_dir) FATAL("Multiple -o options not supported");
@@ -497,6 +497,6 @@ abort_calibration:
 ```
 
 ### 参考的文章
-1.AFL内部实现细节：http://rk700.github.io/2017/12/28/afl-internals/
-2.linux中的fork函数：https://www.cnblogs.com/dongguolei/p/8086346.html
-3.AFL afl_fuzz.c 详细分析：https://bbs.pediy.com/thread-254705.htm
+- AFL内部实现细节：http://rk700.github.io/2017/12/28/afl-internals/
+- linux中的fork函数：https://www.cnblogs.com/dongguolei/p/8086346.html
+- AFL afl_fuzz.c 详细分析：https://bbs.pediy.com/thread-254705.htm
