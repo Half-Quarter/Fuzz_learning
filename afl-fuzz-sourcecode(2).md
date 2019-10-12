@@ -1,11 +1,13 @@
- 
- ```c
+### AFL-Fuzz.c源码解析
+---
+#### while(1)
+```c
  while (1) {
 
     u8 skipped_fuzz;
-
+    //精简队列
     cull_queue();
-
+    
     if (!queue_cur) {
 
       queue_cycle++;
@@ -95,3 +97,5 @@ stop_fuzzing:
 
 }
 ```
+
+#### 
