@@ -19,8 +19,8 @@
 
 #### 效果图
 
-![plot_1](/Users/zhanqi/Documents/GitHub/Afl_fuzz_learning/plot_1.jpg)
+![plot_1](/plotimage/plot_1.jpg)
 
-![plot_2](/Users/zhanqi/Documents/GitHub/Afl_fuzz_learning/plot_2.jpg)
+![plot_2](/plotimage/plot_2.jpg)
 
-![plot_3](/Users/zhanqi/Documents/GitHub/Afl_fuzz_learning/plot_3.jpg)
+![plot_3](/plotimage/plot_3.jpg)
