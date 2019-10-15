@@ -1,4 +1,4 @@
-```c
+```c1
  static u8 fuzz_one(char** argv) {
 
   s32 len, fd, temp_len, i, j;
