@@ -698,7 +698,10 @@ static u8 run_target(char** argv, u32 timeout) {
  //如果是dumb模式开启或者没有配置forkserver
   if (dumb_mode == 1 || no_forkserver) {
     /*wait()用于使父进程阻塞，直到一个子进程结束或者该进程接收到了一个指定的信号为止
-     status是一个整形指针，是该进程退出时的状态，若status不为空，则通过它可以获得子进程的结束状态，child_pid>0只等待进程id等于pid的子进程，只要指定子进程没结束，就会一直等待；child_pid=-1 等待任何一个子进程退出;child_pid=0等待该组id等于调用进程的组id的任一子进程;child_pid<-1 等待该组id等于pid的绝对值的任一子程序
+status是一个整形指针，是该进程退出时的状态，若status不为空，则通过它可以获得子进程的结束状态。
+child_pid>0只等待进程id等于pid的子进程，只要指定子进程没结束，就会一直等待；child_pid=-1 等待任何一个子进程退出;
+child_pid=0等待该组id等于调用进程的组id的任一子进程;
+child_pid<-1 等待该组id等于pid的绝对值的任一子程序
      waitpid返回0 -1是异常
   */
     if (waitpid(child_pid, &status, 0) <= 0) PFATAL("waitpid() failed");
