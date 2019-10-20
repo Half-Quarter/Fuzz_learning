@@ -9,7 +9,7 @@
 ```C
 /* Perform dry run of all test cases to confirm that the app is working as
    expected. This is done only for the initial inputs, and only once. 
-   inputs的所有的测试用例运行一次确认应用程序按照期望的工作，他只是对初始的出入执行一遍且只有一遍*/
+   inputs的所有的测试用例运行一次确认应用程序按照期望的工作，他只是对初始的输入执行一遍且只有一遍*/
 
 static void perform_dry_run(char** argv) {
 
@@ -37,7 +37,7 @@ static void perform_dry_run(char** argv) {
 
     close(fd);
 
-    res = calibrate_case(argv, q, use_mem, 0, 1);//测试用例矫正，返回运行的状态
+    res = calibrate_case(argv, q, use_mem, 0, 1);//测试用例校准，返回运行的状态
     ck_free(use_mem);//安全释放use_mem
 
     if (stop_soon) return;
@@ -220,7 +220,7 @@ calibrate_case（）函数涉及的函数init_forkserver()，run_target（），
 ```c
 /* Calibrate a new test case. This is done when processing the input directory
    to warn about flaky or otherwise problematic test cases early on; and when
-   new paths are discovered to detect variable behavior and so on.矫正一个新的测试用例，在运行输入目录的测试用例的时候，早早警告那些有问题的测试用例 而且当新的路径发现的时候去检测变量的行为等等*/
+   new paths are discovered to detect variable behavior and so on.校准一个新的测试用例，在运行输入目录的测试用例的时候，早早警告那些有问题的测试用例 而且当新的路径发现的时候去检测变量的行为等等*/
 
 static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
                          u32 handicap, u8 from_queue) {
@@ -244,9 +244,9 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
     use_tmout = MAX(exec_tmout + CAL_TMOUT_ADD,
                     exec_tmout * CAL_TMOUT_PERC / 100);
 
-  q->cal_failed++;//开始设置矫正失败
+  q->cal_failed++;//开始设置校准失败
 
-  stage_name = "calibration";//阶段名称：矫正阶段
+  stage_name = "calibration";//阶段名称：校准阶段
   stage_max  = fast_cal ? 3 : CAL_CYCLES;//通过fast_cal设置阶段的最大值
 
   /* Make sure the forkserver is up before we do anything, and let's not
@@ -272,7 +272,7 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
     /* stop_soon is set by the handler for Ctrl+C. When it's pressed,
        we want to bail out quickly. stop_soon是按下Ctrl+C的处理，快速地退出*/
 
-    if (stop_soon || fault != crash_mode) goto abort_calibration;//abort_calibration终止矫正
+    if (stop_soon || fault != crash_mode) goto abort_calibration;//abort_calibration终止校准
 
     if (!dumb_mode && !stage_cur && !count_bytes(trace_bits)) {
       fault = FAULT_NOINST;
@@ -316,8 +316,8 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
 
   stop_us = get_cur_time_us();//获取当前时间
 
-  total_cal_us     += stop_us - start_us;//矫正阶段总用时
-  total_cal_cycles += stage_max;//矫正阶段总的运行此时
+  total_cal_us     += stop_us - start_us;//校准阶段总用时
+  total_cal_cycles += stage_max;//校准阶段总的运行此时
 
   /* OK, let's collect some stats about the performance of this test case.
      This is used for fuzzing air time calculations in calculate_score(). 搜集关于测试用例表现的数据
@@ -326,7 +326,7 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
   q->exec_us     = (stop_us - start_us) / stage_max;//测试用例执行一次的时间
   q->bitmap_size = count_bytes(trace_bits);//测试用例的bitmap的大小（trace_bits数组不为0的个数）
   q->handicap    = handicap;//先前测试用例的周期是0
-  q->cal_failed  = 0;//矫正成功
+  q->cal_failed  = 0;//校准成功
 
   total_bitmap_size += q->bitmap_size;//总的bitmap的大小
   total_bitmap_entries++;//bitmaps的数量
