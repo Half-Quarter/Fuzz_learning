@@ -106,7 +106,9 @@ child_pid<-1 等待该组id等于pid的绝对值的任一子程序
      waitpid返回0 -1是异常
   */
     if (waitpid(child_pid, &status, 0) <= 0) PFATAL("waitpid() failed");
-  } else {
+  }
+  /*** 启动forkserver 获取PID ***/
+  else {
     s32 res;
     //读取子进程状态
     if ((res = read(fsrv_st_fd, &status, 4)) != 4) {

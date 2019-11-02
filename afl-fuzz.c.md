@@ -660,6 +660,12 @@ stop_fuzzing:
   fd = open(queue_cur->fname, O_RDONLY);
   if (fd < 0) PFATAL("Unable to open '%s'", queue_cur->fname);
   len = queue_cur->len;
+  /*
+  mmap将普通文件映射到内存中，通常在需要对文件进行频繁读写时使用，用内存读写取代I/O读写，以获得较高的性能
+  mmap（想要映射的内存地址，文件中多大的部分映射到内存，映射区域的保护方式，影响映射区域的各种特性，文件描述符，偏移量）
+  PROT_READ | PROT_WRITE 是映射区域可读取或者可被写入
+  MAP_PRIVATE 对映射区域的写入操作会产生一个映射文件的复制，对此区域作的任何修改都不会写回原来的文件内容。
+  */
   orig_in = in_buf = mmap(0, len, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
   if (orig_in == MAP_FAILED) PFATAL("Unable to mmap '%s'", queue_cur->fname);
   close(fd);
