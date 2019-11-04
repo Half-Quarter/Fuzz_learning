@@ -165,3 +165,7 @@ child_pid<-1 等待该组id等于pid的绝对值的任一子程序
 
 }
 ```
+
+问题：forkserver是为了绕过execve 节省了载入目标文件和库、解析符号地址等重复性工作 那他是怎么执行的呢
+
+​           分桶 save_if_interest
