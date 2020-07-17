@@ -152,3 +152,86 @@ for(i=0;i<length;i++){
   ???
   jmp address_continue //跳转到i++处
 ```
+
+---
+
+ 是自己开发？还是在AFL/？的基础上修改？
+ 在AFL/fuzzer的基础上修改：
+  1.插桩。我们修改插桩的哪一部分？对Loop部分要着重做什么吗？这部分源码应该位于afl-as.h中
+  ##### afl插桩参考资料：  
+  - https://muzibing.github.io/2019/09/07/2019.09.07%EF%BC%8880%EF%BC%89/
+  - 
+
+  2.判断某条路径是不是我们favourite的。
+    update_bitmap_score();
+    save_if_interesting();
+  3.种子的变异策略需不需要修改？我们需不需要在静态分析的时候获取循环条件的信息，然后定向的进行变异？fuzz_one();
+  4.对种子的评分标准？（测试用例执行的时间*测试用例的长度）/路径长度*危险函数系数
+   calculate_score()
+
+ 自己开发：
+ 一个最简单的fuzz器至少要有两个组件：变异引擎和执行引擎
+ 还需要插桩吗？
+ 用什么语言做开发？ C/C++ Rust Go还是python
+  ##### python开发fuzzer资料：
+   - https://h0mbre.github.io/Fuzzing-Like-A-Caveman/#
+   - https://bbs.pediy.com/thread-259382.htm
+   - https://bbs.pediy.com/thread-259397.htm
+
+---
+
+  AFL-fast是在AFL的基础上修改的。修改：大多数生成的输入都使用相同的“高频”路径，并且开发了趋向于低频路径的策略，在相同的时间内出发更多的程序行为。设计了几种**搜索策略**，这些策略决定了应该以何种顺序对种子进行模糊处理，并且通过功率调度调节了对种子进行模糊测试所花费的时间。种子产生投入的数量，即种子的能量。
+
+---
+
+calculate_score()评分：
+``` c
+/* Calculate case desirability score to adjust the length of havoc fuzzing.
+   A helper function for fuzz_one(). Maybe some of these constants should
+   go into config.h. */
+
+static u32 calculate_score(struct queue_entry* q) {
+
+  u32 avg_exec_us = total_cal_us / total_cal_cycles;
+  u32 avg_bitmap_size = total_bitmap_size / total_bitmap_entries;
+  u32 perf_score = 100;
+
+  /* Adjust score based on execution speed of this path, compared to the
+     global average. Multiplier ranges from 0.1x to 3x. Fast inputs are
+     less expensive to fuzz, so we're giving them more air time. */
+//路径的执行速度？
+  if (q->exec_us * 0.1 > avg_exec_us) perf_score = 10;
+  else if (q->exec_us * 0.25 > avg_exec_us) perf_score = 25;
+  else if (q->exec_us * 0.5 > avg_exec_us) perf_score = 50;
+  else if (q->exec_us * 0.75 > avg_exec_us) perf_score = 75;
+  else if (q->exec_us * 4 < avg_exec_us) perf_score = 300;
+  else if (q->exec_us * 3 < avg_exec_us) perf_score = 200;
+  else if (q->exec_us * 2 < avg_exec_us) perf_score = 150;
+
+  /* Adjust score based on bitmap size. The working theory is that better
+     coverage translates to better targets. Multiplier from 0.25x to 3x. */
+ //根据位图大小调整分数
+
+  if (q->bitmap_size * 0.3 > avg_bitmap_size) perf_score *= 3;
+  else if (q->bitmap_size * 0.5 > avg_bitmap_size) perf_score *= 2;
+  else if (q->bitmap_size * 0.75 > avg_bitmap_size) perf_score *= 1.5;
+  else if (q->bitmap_size * 3 < avg_bitmap_size) perf_score *= 0.25;
+  else if (q->bitmap_size * 2 < avg_bitmap_size) perf_score *= 0.5;
+  else if (q->bitmap_size * 1.5 < avg_bitmap_size) perf_score *= 0.75;
+
+  /* Adjust score based on handicap. Handicap is proportional to how late
+     in the game we learned about this path. Latecomers are allowed to run
+     for a bit longer until they catch up with the rest. */
+//handicap 障碍、阻碍
+  if (q->handicap >= 4) {
+
+    perf_score *= 4;
+    q->handicap -= 4;
+
+  } else if (q->handicap) {
+
+    perf_score *= 2;
+    q->handicap--;
+
+  }
+```
