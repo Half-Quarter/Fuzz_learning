@@ -289,8 +289,9 @@ static u32 calculate_score(struct queue_entry* q) {
      }
 }
 ```
- Power Schedule（能量表）：
+ **Power Schedule（能量表）**：
  afl-fuzz.c-->100行、4765行、7992行、8029行
+
 ``` c
 static u8 schedule = 0;               /* Power schedule (default: FAST)   */
 enum {
@@ -380,6 +381,7 @@ enum {
   perf_score *= factor / POWER_BETA;
 ```
 ---
+ 这部分代码是选择模式和显示提示。
 ``` c
       case 'p': /* Power schedule */
         if (!stricmp(optarg, "fast")) {
@@ -396,9 +398,7 @@ enum {
           schedule = EXPLORE;
         }
         break;
-```
----
-``` c
+  ...
   switch (schedule) {
     case FAST:    OKF ("Using exponential power schedule (FAST)"); break;
     case COE:     OKF ("Using cut-off exponential power schedule (COE)"); break;
@@ -407,4 +407,89 @@ enum {
     case QUAD:    OKF ("Using quadratic power schedule (QUAD)"); break;
     case EXPLORE: OKF ("Using exploration-based constant power schedule (EXPLORE)"); break;
     default : FATAL ("Unkown power schedule"); break;
+```
+
+---
+#### COE指数截断
+``` c
+    case COE:
+      fuzz_total = 0; //已经执行的fuzz的总能量
+      n_paths = 0;//已经执行的路径数
+
+      struct queue_entry *queue_it = queue;	//queue是已经fuzz过的种子队列
+      while (queue_it) {  //迭代记录fuzz总能量和已经执行的路径数
+        fuzz_total += queue_it->n_fuzz; //n_fuzz是不发生overflow的fuzz次数
+        n_paths ++;
+        queue_it = queue_it->next;
+      }
+
+      fuzz_mu = fuzz_total / n_paths; //平均能量
+      if (fuzz <= fuzz_mu) {  //如果fuzz的这个种子低于平均能量，也就是我们说的低频路径
+        if (q->fuzz_level < 16) //fuzz_level是fuzz的迭代次数
+          factor = ((u32) (1 << q->fuzz_level)); //把factor设为2的fuzz_level次方
+        else 
+          factor = MAX_FACTOR; //如果大于16，就将能量设成最大值
+      } else {
+        factor = 0; //如果是高频路径，就直接把能量设为0
+      }
+      break;
+    
+```
+#### Fast快速模式
+``` c
+   case FAST:
+      if (q->fuzz_level < 16) { //如果fuzz的迭代次数小于16
+         factor = ((u32) (1 << q->fuzz_level)) / (fuzz == 0 ? 1 : fuzz); 
+         //判定种子的能量是不是0，如果是0则除数为1，如果不是则除数为能量值本身
+         //设定factor的值为2的迭代次数次方除以被除数
+      } else //如果大于等于16则factor的值为
+        factor = MAX_FACTOR / (fuzz == 0 ? 1 : next_p2 (fuzz));
+        //next_p2?
+      break;
+```
+##### 对AFLfast的疑惑
+- COE模式下，为什么把高频路径的能量直接设置为0？为什么要迭代增加低频路径的能量还不是直接设为MAX？
+
+---
+### EcoFuzz
+  #### MAB问题
+  一个赌徒，要去摇老虎机，走进赌场一看，一排老虎机，外表一模一样，但是每个老虎机吐钱的概率可不一样，他不知道每个老虎机吐钱的概率分布是什么，那么想最大化收益该怎么办？
+  这就是多臂赌博机问题 (Multi-armed bandit problem, K-armed bandit problem, MAB)，简称 MAB 问题。有很多相似问题都属于 MAB 问题。
+1. 假设一个用户对不同类别的内容感兴趣程度不同，当推荐系统初次见到这个用户时，怎么快速地知道他对每类内容的感兴趣程度？这也是推荐系统常常面对的冷启动问题。
+2. 假设系统中有若干广告库存物料，该给每个用户展示哪个广告，才能获得最大的点击收益，是不是每次都挑收益最好那个呢？
+3. 算法工程师设计出了新的策略或者模型，如何能知道它和旧模型相比谁更靠谱又对风险可控呢？
+  Bandit算法是一类解决MAB问题的算法，它的思想是看看选择会带来多少遗憾，遗憾越少越好。
+  Bandit算法中有几个关键元素：臂，回报，环境。
+- 臂：是每次选择的候选项目；每次推荐时候选择的候选池。
+- 回报：选择某个项目后的得到的奖励；用户是否对推荐结果喜欢；
+- 环境：决定每个臂不同的因素统称为环境；在推荐系统中面对的用户就是不可捉摸的环境
+
+#### 源码变更部分
+ 添加的变量：
+``` c
+          *information_file_name,     /* Information file name            */
+          *time_file_name,            /* Time file name                   */
+           state_of_fuzz = 0,         /* State of fuzzing                 */
+           information_fd,            /* Persistent fd for out-file       */
+           time_fd,                   /* Persistent fd for time file      */
+static float rate = 1;                /* Rate of regret                   */
+
+           queued_paths_initial,      /* Initial paths                    */
+           calculate_coe = 0,         /* Coefficient of calculate rate    */
+           total_fuzz = 0,            /* Total fuzzs                      */
+static FILE *plot_file,               /* Gnuplot output file              */
+            *time_file,               /* Time output file                 */
+            *information_file;        /* Information output file          */
+      state,                          /* Was fuzzed dutring state 2?      */
+      last_found,                     /* Number of found paths            */
+      abandon,                        /* Marked as abandon?               */
+      TS_max,                         /* Chose for t/s is maxed?          */
+      chose_time,                     /* Number of times chose for fuzz   */
+      serial,                         /* Serial number of this test case  */
+      line,                           /* Number of paths to find path     */
+      exec_num,                       /* Number of execution of this path */
+      last_energy,                    /* Number of test cases last fuzzing*/
+      mutation_num,                   /* Number of mutating the test case */
+      exec_by_mutation,               /* Number of mutated by this test   */
+      power,                          /* Power of mutation number         */
 ```

@@ -1,0 +1,179 @@
+ Copyright 2013, 2014, 2015, 2016 Google Inc. All rights reserved.
+static u8 schedule = 0;               /* Power schedule (default: FAST)   */
+enum {
+  /* 00 */ FAST,                      /* Exponential schedule             */
+  /* 01 */ COE,                       /* Cut-Off Exponential schedule     */
+  /* 02 */ EXPLORE,                   /* Exploration-based constant sch.  */
+  /* 03 */ LIN,                       /* Linear schedule                  */
+  /* 04 */ QUAD,                      /* Quadratic schedule               */
+  /* 05 */ EXPLOIT                    /* AFL's exploitation-based const.  */
+};
+
+      fuzz_level,                     /* Number of fuzzing iterations     */
+      depth,                          /* Path depth                       */
+      n_fuzz;                         /* Number of fuzz, does not overflow */
+static u64 next_p2(u64 val);
+  q->n_fuzz       = 1;
+
+  u64 fuzz_p2      = next_p2 (q->n_fuzz);
+         u64 top_rated_fuzz_p2    = next_p2 (top_rated[i]->n_fuzz);
+         u64 top_rated_fav_factor = top_rated[i]->exec_us * top_rated[i]->len;
+         if (fuzz_p2 > top_rated_fuzz_p2) continue;
+         else if (fuzz_p2 == top_rated_fuzz_p2) {
+
+           if (fav_factor > top_rated_fav_factor) continue;
+    
+         }
+      if (top_rated[i]->fuzz_level == 0) pending_favored++;
+
+
+
+
+                         u32 handicap, u8 from_queue) {
+
+
+  /* Update path frequency. */
+  u32 cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
+
+  struct queue_entry* q = queue;
+  while (q) {
+    if (q->exec_cksum == cksum)
+      q->n_fuzz = q->n_fuzz + 1;
+
+    q = q->next;
+
+  }
+
+    }
+#ifndef SIMPLE_FILES
+    queue_top->exec_cksum = cksum;
+    
+             exec_tmout, use_banner, orig_cmdline);
+          cYEL "american fuzzy lop (fast)", use_banner);
+  sprintf(tmp, "%s%s%d (%0.02f%%)", DI(current_entry),
+          queue_cur->favored ? "." : "*", queue_cur->fuzz_level,
+   2^63). */
+static u64 next_p2(u64 val) {
+  u64 ret = 1;
+  u64 fuzz = q->n_fuzz;
+  u64 fuzz_total;
+
+  u32 n_paths, fuzz_mu;
+  u32 factor = 1;
+
+  switch (schedule) {
+
+    case EXPLORE: 
+      break;
+    
+    case EXPLOIT:
+      factor = MAX_FACTOR;
+      break;
+    
+    case COE:
+      fuzz_total = 0;
+      n_paths = 0;
+    
+      struct queue_entry *queue_it = queue;	
+      while (queue_it) {
+        fuzz_total += queue_it->n_fuzz;
+        n_paths ++;
+        queue_it = queue_it->next;
+      }
+    
+      fuzz_mu = fuzz_total / n_paths;
+      if (fuzz <= fuzz_mu) {
+        if (q->fuzz_level < 16)
+          factor = ((u32) (1 << q->fuzz_level));
+        else 
+          factor = MAX_FACTOR;
+      } else {
+        factor = 0;
+      }
+      break;
+    
+    case FAST:
+      if (q->fuzz_level < 16) {
+         factor = ((u32) (1 << q->fuzz_level)) / (fuzz == 0 ? 1 : fuzz); 
+      } else
+        factor = MAX_FACTOR / (fuzz == 0 ? 1 : next_p2 (fuzz));
+      break;
+    
+    case LIN:
+      factor = q->fuzz_level / (fuzz == 0 ? 1 : fuzz); 
+      break;
+    
+    case QUAD:
+      factor = q->fuzz_level * q->fuzz_level / (fuzz == 0 ? 1 : fuzz);
+      break;
+    
+    default:
+      PFATAL ("Unkown Power Schedule");
+  }
+  if (factor > MAX_FACTOR) 
+    factor = MAX_FACTOR;
+
+  perf_score *= factor / POWER_BETA;
+
+   vales are identical and the exec would be a waste of time. */
+    if ((queue_cur->fuzz_level > 0 || !queue_cur->favored) &&
+    if (queue_cycle > 1 && queue_cur->fuzz_level == 0) {
+  if (perf_score == 0) goto abandon_entry;
+
+  /* Skip right away if -d is given, if it has not been chosen sufficiently
+     often to warrant the expensive deterministic stage (fuzz_level), or
+     if it has gone through deterministic testing in earlier, resumed runs
+     (passed_det). */
+  if (skip_deterministic 
+     || ((!queue_cur->passed_det) 
+        && perf_score < (
+              queue_cur->depth * 30 <= HAVOC_MAX_MULT * 100
+              ? queue_cur->depth * 30 
+              : HAVOC_MAX_MULT * 100))
+     || queue_cur->passed_det)
+  if (!stop_soon && !queue_cur->cal_failed && queue_cur->fuzz_level == 0) {
+
+  queue_cur->fuzz_level++;
+       "  -p schedule   - power schedules recompute a seed's performance score.\n"
+       "                  <fast (default), coe, explore, lin, quad, or exploit>\n"
+static void fix_up_sync(void) {
+  u8* x = sync_id;
+  if (dumb_mode)
+    skip_deterministic = 1;
+    use_splicing = 1;
+int stricmp(char const *a, char const *b) {
+  int d;
+  for (;; a++, b++) {
+    d = tolower(*a) - tolower(*b);
+    if (d != 0 || !*a)
+      return d;
+  }
+}
+  SAYF(cCYA "afl-fuzz " cBRI VERSION cRST " by <lcamtuf@google.com>. Power schedules by <marcel.boehme@acm.org>\n");
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:Qp:")) > 0)
+      case 'p': /* Power schedule */
+        if (!stricmp(optarg, "fast")) {
+          schedule = FAST;
+        } else if (!stricmp(optarg, "coe")) {
+          schedule = COE;
+        } else if (!stricmp(optarg, "exploit")) {
+          schedule = EXPLOIT;
+        } else if (!stricmp(optarg, "lin")) {
+          schedule = LIN;
+        } else if (!stricmp(optarg, "quad")) {
+          schedule = QUAD;
+        } else if (!stricmp(optarg, "explore")) {
+          schedule = EXPLORE;
+        }
+        break;
+
+  }
+
+  switch (schedule) {
+    case FAST:    OKF ("Using exponential power schedule (FAST)"); break;
+    case COE:     OKF ("Using cut-off exponential power schedule (COE)"); break;
+    case EXPLOIT: OKF ("Using exploitation-based constant power schedule (EXPLOIT)"); break;
+    case LIN:     OKF ("Using linear power schedule (LIN)"); break;
+    case QUAD:    OKF ("Using quadratic power schedule (QUAD)"); break;
+    case EXPLORE: OKF ("Using exploration-based constant power schedule (EXPLORE)"); break;
+    default : FATAL ("Unkown power schedule"); break;
